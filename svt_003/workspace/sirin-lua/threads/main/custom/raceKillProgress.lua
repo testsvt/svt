@@ -50,6 +50,39 @@ local selectedRow = {}
 local raceTop = { [0] = {}, [1] = {}, [2] = {} }
 local sendWindowState
 
+-- Per-tab ranking caches: race -> list of {name, kills}
+local raceTopTab = {
+	[1] = { [0] = {}, [1] = {}, [2] = {} },
+	[2] = { [0] = {}, [1] = {}, [2] = {} },
+}
+
+-- Per-tab claimed flags
+local claimedRewardTab = {
+	[1] = {},
+	[2] = {},
+}
+
+-- Pending reward tab per player
+local pendingRewardTab = {}
+
+local serialToName = serialToName or {}
+
+local function recomputeTopForRaceAndTab(race, tab)
+	local source = personalKillsByMonIndex[tab == 1 and MON_INDEX_TAB1 or MON_INDEX_TAB2]
+	local list = {}
+	for serial, kills in pairs(source) do
+		local p = Sirin.mainThread.getPlayerBySerial(serial)
+		local name = (p and p.m_Param and p.m_Param.m_dbChar and p.m_Param.m_dbChar.m_wszCharID) or serialToName[serial]
+		if name then
+			table.insert(list, { name = name, kills = kills })
+		end
+	end
+	table.sort(list, function(a,b) return (a.kills or 0) > (b.kills or 0) end)
+	local out = {}
+	for i = 1, math.min(5, #list) do out[i] = list[i] end
+	raceTopTab[tab][race] = out
+end
+
 local function getPlayerKey(p)
     return p.m_id.dwSerial
 end
@@ -289,43 +322,43 @@ local function sendRewardWindow(p)
 end
 
 -- build and send only ranking state (without forcing window open)
-local function sendRankingUpdate(p)
-    local race = getRaceKey(p)
-    local entries = raceTop[race] or {}
-    local w = { id = WINDOW_ID_RANK, data = {} }
-    -- ensure header is visible
-    table.insert(w.data, { id = 1, stateFlags = tonumber('001', 2) })
-    for i = 1, 5 do
-        local row = entries[i]
-        local txt = row and string.format('%d) %s %d', i, row.name, row.kills) or string.format('%d) --- 0', i)
-        table.insert(w.data, { id = i + 1, stateFlags = tonumber('001', 2), text = txt })
-    end
-    NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
+local function sendRankingUpdate(p, tab)
+	local race = getRaceKey(p)
+	local entries = (raceTopTab[tab] and raceTopTab[tab][race]) or {}
+	local w = { id = WINDOW_ID_RANK, data = {} }
+	-- ensure header is visible
+	table.insert(w.data, { id = 1, stateFlags = tonumber('001', 2) })
+	for i = 1, 5 do
+		local row = entries[i]
+		local txt = row and string.format('%d) %s %d', i, row.name, row.kills) or string.format('%d) --- 0', i)
+		table.insert(w.data, { id = i + 1, stateFlags = tonumber('001', 2), text = txt })
+	end
+	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
 end
 
 -- build and send ranking window state
-local function sendRankingWindow(p)
-    local race = getRaceKey(p)
-    local entries = raceTop[race] or {}
+local function sendRankingWindow(p, tab)
+	local race = getRaceKey(p)
+	local entries = (raceTopTab[tab] and raceTopTab[tab][race]) or {}
 
-    local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
-    local defs = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
-    local def = defs and defs[WINDOW_ID_RANK]
+	local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
+	local defs = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
+	local def = defs and defs[WINDOW_ID_RANK]
 
-    if def then
-        local defBumped = bumpDef(def)
-        NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { defBumped } }, true)
-    end
+	if def then
+		local defBumped = bumpDef(def)
+		NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { defBumped } }, true)
+	end
 
-    local w = { id = WINDOW_ID_RANK, data = {} }
-    table.insert(w.data, { id = 1, stateFlags = tonumber('001', 2) })
-    for i = 1, 5 do
-        local row = entries[i]
-        local txt = row and string.format('%d) %s %d', i, row.name, row.kills) or string.format('%d) --- 0', i)
-        table.insert(w.data, { id = i + 1, stateFlags = tonumber('001', 2), text = txt })
-    end
-    NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
-    openCustomWindow(p, WINDOW_ID_RANK)
+	local w = { id = WINDOW_ID_RANK, data = {} }
+	table.insert(w.data, { id = 1, stateFlags = tonumber('001', 2) })
+	for i = 1, 5 do
+		local row = entries[i]
+		local txt = row and string.format('%d) %s %d', i, row.name, row.kills) or string.format('%d) --- 0', i)
+		table.insert(w.data, { id = i + 1, stateFlags = tonumber('001', 2), text = txt })
+	end
+	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
+	openCustomWindow(p, WINDOW_ID_RANK)
 end
 
 -- periodic refresh of rank label
@@ -438,23 +471,34 @@ function script.onButtonPress(p, dwActWindowID, dwActButtonID, dwParentWindowID,
 			resendRaceWindowStatic(p)
 			sendWindowState(p)
 			return
-		elseif id == 4 or id == 9 then
-			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
-			sendRankingWindow(p)
+		elseif id == 4 then
+			-- rank for tab 1
+			sendRankingWindow(p, 1)
 			return
-		elseif id == 5 or id == 10 then
+		elseif id == 5 then
+			-- claim for tab 1
+			pendingRewardTab[p.m_id.dwSerial] = 1
+			sendRewardWindow(p)
+			return
+		elseif id == 9 then
+			-- rank for tab 2
+			sendRankingWindow(p, 2)
+			return
+		elseif id == 10 then
+			-- claim for tab 2
+			pendingRewardTab[p.m_id.dwSerial] = 2
 			sendRewardWindow(p)
 			return
 		end
 	elseif dwActWindowID == WINDOW_ID_REWARD then
 		if dwActButtonID == 2 or id == 2 then
-			-- keep reward logic as is
-			local rk = raceKills[getRaceKey(p)] or 0
-			local pk = personalKills[getPlayerKey(p)] or 0
+			local tab = pendingRewardTab[p.m_id.dwSerial] or 1
+			local rk = (tab == 1) and (raceKillsByMonIndex[MON_INDEX_TAB1][getRaceKey(p)] or 0) or (raceKillsByMonIndex[MON_INDEX_TAB2][getRaceKey(p)] or 0)
+			local pk = (tab == 1) and (personalKillsByMonIndex[MON_INDEX_TAB1][getPlayerKey(p)] or 0) or (personalKillsByMonIndex[MON_INDEX_TAB2][getPlayerKey(p)] or 0)
 			local leftRace = math.max(0, RACE_TARGET - rk)
 			local leftPersonal = math.max(0, PERSONAL_TARGET - pk)
-			if claimedReward[getPlayerKey(p)] then
-				informPlayer(p, "Вы уже получили данную награду.")
+			if claimedRewardTab[tab][getPlayerKey(p)] then
+				informPlayer(p, "Вы уже получили данную награду для этой вкладки.")
 				return
 			end
 			if leftRace > 0 or leftPersonal > 0 then
@@ -469,7 +513,7 @@ function script.onButtonPress(p, dwActWindowID, dwActButtonID, dwParentWindowID,
 				informPlayer(p, chatMsg)
 				return
 			end
-			claimedReward[getPlayerKey(p)] = true
+			claimedRewardTab[tab][getPlayerKey(p)] = true
 			Sirin.mainThread.modChargeItem.giveItemBySerial(p.m_id.dwSerial, REWARD_ITEM_CODE, REWARD_COUNT, 0, 0, true)
 			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 103, p.m_id.dwSerial)
 			informPlayer(p, "Награда получена.")
