@@ -244,6 +244,20 @@ local function bumpDef(def)
     return c
 end
 
+local function setRowVisibility(p, showRow)
+    local w = { id = WINDOW_ID, data = {} }
+    -- Row 1 components: ids 1..5; Row 2 components: ids 6..10
+    local vis1 = (showRow == 1) and 1 or 0
+    local vis2 = (showRow == 2) and 1 or 0
+    for i = 1, 5 do
+        table.insert(w.data, { id = i, stateFlags = tonumber((vis1==1) and '001' or '000', 2) })
+    end
+    for i = 6, 10 do
+        table.insert(w.data, { id = i, stateFlags = tonumber((vis2==1) and '001' or '000', 2) })
+    end
+    NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
+end
+
 scheduleAfter = function(uid, delayMs, fn)
     local start = Sirin.mainThread.GetLoopTime()
     local executed = false
@@ -404,6 +418,8 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
         if target and target.customWindow == WINDOW_ID then
             Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
             sendWindowState(p)
+            -- default to row 1 visible on open
+            setRowVisibility(p, 1)
             return
         elseif target and target.customWindow == WINDOW_ID_RANK then
             Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
@@ -418,6 +434,14 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
         elseif dwActDataID == IDX_RANK_BTN then
             Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
             sendRankingWindow(p)
+            return
+        elseif dwActDataID == 1 then
+            -- Icon 1: show row 1
+            setRowVisibility(p, 1)
+            return
+        elseif dwActDataID == 6 then
+            -- Icon 2: show row 2 (icon index is 6 in second row)
+            setRowVisibility(p, 2)
             return
         end
     elseif dwActWindowID == WINDOW_ID_REWARD then
