@@ -9,7 +9,7 @@ local t = {
 		data = {
 			-- Row 1
 			{
-				icon = { 8, 0, 26, 183 },
+				text = { default = "Вкладка 1" },
 			},
 			{ text = { default = "Race kills", }, },
 			{ text = { default = "Your kills", }, },
@@ -17,7 +17,7 @@ local t = {
 			{ text = { default = "Claim reward", }, description = { default = "Requires race 10/10 and you 5/5", }, },
 			-- Row 2
 			{
-				icon = { 8, 0, 26, 195 },
+				text = { default = "Вкладка 2" },
 			},
 			{ text = { default = "Race kills", }, },
 			{ text = { default = "Your kills", }, },

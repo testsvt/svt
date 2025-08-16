@@ -38,9 +38,21 @@ local function sendWindowStatic(p)
     local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
     local defs = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
     local def = defs and defs[WINDOW_ID]
-    if def then
-        NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { def } }, true)
+    if not def then
+        -- fallback static (simple two-lines window) if loader not ready yet
+        def = {
+            id = WINDOW_ID,
+            name = { default = "Reload Center" },
+            width = 420,
+            height = 140,
+            layout = { 0 },
+            data = {
+                { text = { default = "Reload scripts (main/custom & ReloadableScripts)" } },
+                { text = { default = "Run Reload" } },
+            },
+        }
     end
+    NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { def } }, true)
 end
 
 local function sendWindowState(p)
