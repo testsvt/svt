@@ -174,8 +174,8 @@ function script.sendWindowState(p)
 	table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
 
 	local showRow1 = (currentRow == 1)
-	local flagRow1 = tonumber(showRow1 and '001' or '000', 2)
-	local flagRow2 = tonumber(showRow1 and '000' or '001', 2)
+	local flagRow1 = tonumber(showRow1 and '001' or '011', 2)
+	local flagRow2 = tonumber(showRow1 and '011' or '001', 2)
 
 	-- Row 1 content
 	table.insert(w.data, {
@@ -207,6 +207,18 @@ function script.sendWindowState(p)
 	-- Row 2 content visibility only
 	for i = 7, 10 do
 		table.insert(w.data, { id = i, stateFlags = flagRow2 })
+	end
+
+	-- Row 2 content: mirror actions (rank button at id=9, claim at id=10) when row2 is active
+	-- Add texts/progress on ids 7-8 already controlled above; now ensure buttons act when row2 visible
+	if not showRow1 then
+		-- id 9 behaves like IDX_RANK_BTN, id 10 like IDX_CLAIM
+		table.insert(w.data, { id = 9, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
+		table.insert(w.data, { id = 10, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
+	else
+		-- when row1 selected keep row2 buttons disabled but visible to keep placement
+		table.insert(w.data, { id = 9, stateFlags = tonumber('011', 2), text = rankLabel, counter = { -1, -1 } })
+		table.insert(w.data, { id = 10, stateFlags = tonumber('011', 2), counter = { -1, -1 } })
 	end
 
 	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
@@ -255,10 +267,11 @@ local function setRowVisibility(p, showRow)
 	table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
 	local show1 = (showRow == 1)
 	for i = 2, 5 do
-		table.insert(w.data, { id = i, stateFlags = tonumber(show1 and '001' or '000', 2) })
+		-- selected row visible, other row visible+disabled to preserve layout placement
+		table.insert(w.data, { id = i, stateFlags = tonumber(show1 and '001' or '011', 2) })
 	end
 	for i = 7, 10 do
-		table.insert(w.data, { id = i, stateFlags = tonumber((not show1) and '001' or '000', 2) })
+		table.insert(w.data, { id = i, stateFlags = tonumber((not show1) and '001' or '011', 2) })
 	end
 	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
 end
@@ -444,10 +457,19 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
             selectedRow[p.m_id.dwSerial] = 1
             setRowVisibility(p, 1)
             return
-        elseif dwActDataID == 6 then
-            selectedRow[p.m_id.dwSerial] = 2
-            setRowVisibility(p, 2)
-            return
+        		elseif dwActDataID == 6 then
+			selectedRow[p.m_id.dwSerial] = 2
+			setRowVisibility(p, 2)
+			return
+		elseif dwActDataID == 9 then
+			-- rank from row2
+			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
+			sendRankingWindow(p)
+			return
+		elseif dwActDataID == 10 then
+			-- claim from row2
+			sendRewardWindow(p)
+			return
         end
     elseif dwActWindowID == WINDOW_ID_REWARD then
         if dwActDataID == 2 then
