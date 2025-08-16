@@ -33,6 +33,7 @@ local loadTracker = {}
 
 -- ranking cache: per race top list of {name, kills}
 local raceTop = { [0] = {}, [1] = {}, [2] = {} }
+local sendWindowState
 
 local function getPlayerKey(p)
     return p.m_id.dwSerial
@@ -155,7 +156,7 @@ local function shallowClone(t)
     return c
 end
 
-local function sendWindowState(p)
+sendWindowState = function(p)
     local rk = raceKills[getRaceKey(p)] or 0
     local pk = personalKills[getPlayerKey(p)] or 0
     local canClaim = (rk >= RACE_TARGET) and (pk >= PERSONAL_TARGET) and (not claimedReward[getPlayerKey(p)])
