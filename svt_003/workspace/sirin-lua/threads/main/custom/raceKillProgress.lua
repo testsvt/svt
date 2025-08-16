@@ -579,3 +579,28 @@ local function autoInit()
 end
 
 autoInit()
+
+function script.__exportState()
+	return {
+		raceKills = raceKills,
+		personalKills = personalKills,
+		claimedReward = claimedReward,
+		raceTop = raceTop,
+		loadTracker = loadTracker,
+		selectedRow = selectedRow,
+		sentStatics = script.sentStatics,
+		visualSeq = script.visualSeq,
+	}
+end
+
+function script.__importState(st)
+	if type(st) ~= 'table' then return end
+	raceKills = st.raceKills or raceKills
+	personalKills = st.personalKills or personalKills
+	claimedReward = st.claimedReward or claimedReward
+	raceTop = st.raceTop or raceTop
+	loadTracker = st.loadTracker or loadTracker
+	selectedRow = st.selectedRow or selectedRow
+	script.sentStatics = st.sentStatics or {}
+	script.visualSeq = st.visualSeq or 0
+end

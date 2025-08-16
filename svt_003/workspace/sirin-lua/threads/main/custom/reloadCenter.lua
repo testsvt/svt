@@ -83,80 +83,110 @@ local function postReloadResync()
     logConsole(true, "[Reload] Resync queued: personal, claimed, race totals, ranking")
 end
 
+local function resendAllWindows()
+	local online = Sirin.mainThread.getActivePlayers()
+	for _,p in ipairs(online) do
+		-- resend statics for windows 3 (Race Hunt), 4 (Rank), 5 (Reward), 10 (Reload Center)
+		local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
+		local defs = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
+		if defs then
+			local ids = {3,4,5,WINDOW_ID}
+			for _,wid in ipairs(ids) do
+				local def = defs[wid]
+				if def then
+					NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { def } }, true)
+				end
+			end
+		end
+		-- send states
+		if _G['raceKillProgress'] and _G['raceKillProgress'].sendWindowState then
+			_G['raceKillProgress'].sendWindowState(p)
+		end
+		sendWindowState(p)
+	end
+end
+
 local function reloadAll()
-    local overall = true
-    local parts = {}
+	local overall = true
+	local parts = {}
 
-    -- GMCommands
-    local ok_gm = SirinLua.GmCommMgr and SirinLua.GmCommMgr.loadScripts and SirinLua.GmCommMgr.loadScripts() or false
-    logConsole(ok_gm, string.format("[Reload] GMCommands: %s", ok_gm and "OK" or "FAIL"))
-    table.insert(parts, string.format("GMCommands:%s", ok_gm and "OK" or "FAIL"))
-    overall = overall and ok_gm
+	-- Preserve raceKillProgress state
+	local rkState
+	if _G['raceKillProgress'] and _G['raceKillProgress'].__exportState then
+		local ok, st = pcall(_G['raceKillProgress'].__exportState)
+		if ok then rkState = st end
+	end
 
-    -- NPCButtons
-    local ok_npc = SirinLua.ButtonMgr and SirinLua.ButtonMgr.loadScripts and SirinLua.ButtonMgr.loadScripts() or false
-    logConsole(ok_npc, string.format("[Reload] NPCButtons: %s", ok_npc and "OK" or "FAIL"))
-    table.insert(parts, string.format("NPCButtons:%s", ok_npc and "OK" or "FAIL"))
-    overall = overall and ok_npc
+	-- GMCommands
+	local ok_gm = SirinLua.GmCommMgr and SirinLua.GmCommMgr.loadScripts and SirinLua.GmCommMgr.loadScripts() or false
+	logConsole(ok_gm, string.format("[Reload] GMCommands: %s", ok_gm and "OK" or "FAIL"))
+	table.insert(parts, string.format("GMCommands:%s", ok_gm and "OK" or "FAIL"))
+	overall = overall and ok_gm
 
-    -- PotionEffect
-    local ok_potion = SirinLua.PotionMgr and SirinLua.PotionMgr.loadScripts and SirinLua.PotionMgr.loadScripts() or false
-    logConsole(ok_potion, string.format("[Reload] PotionEffect: %s", ok_potion and "OK" or "FAIL"))
-    table.insert(parts, string.format("Potion:%s", ok_potion and "OK" or "FAIL"))
-    overall = overall and ok_potion
+	-- NPCButtons
+	local ok_npc = SirinLua.ButtonMgr and SirinLua.ButtonMgr.loadScripts and SirinLua.ButtonMgr.loadScripts() or false
+	logConsole(ok_npc, string.format("[Reload] NPCButtons: %s", ok_npc and "OK" or "FAIL"))
+	table.insert(parts, string.format("NPCButtons:%s", ok_npc and "OK" or "FAIL"))
+	overall = overall and ok_npc
 
-    -- BoxOpen
-    local ok_box = SirinLua.BoxOpenMgr and SirinLua.BoxOpenMgr.loadScripts and SirinLua.BoxOpenMgr.loadScripts() or false
-    logConsole(ok_box, string.format("[Reload] BoxOpen: %s", ok_box and "OK" or "FAIL"))
-    table.insert(parts, string.format("BoxOpen:%s", ok_box and "OK" or "FAIL"))
-    overall = overall and ok_box
+	-- PotionEffect
+	local ok_potion = SirinLua.PotionMgr and SirinLua.PotionMgr.loadScripts and SirinLua.PotionMgr.loadScripts() or false
+	logConsole(ok_potion, string.format("[Reload] PotionEffect: %s", ok_potion and "OK" or "FAIL"))
+	table.insert(parts, string.format("Potion:%s", ok_potion and "OK" or "FAIL"))
+	overall = overall and ok_potion
 
-    -- CombineEx
-    local ok_combine = _G['CombineExMgr'] and CombineExMgr.loadScripts and CombineExMgr.loadScripts() or false
-    logConsole(ok_combine, string.format("[Reload] CombineEx: %s", ok_combine and "OK" or "FAIL"))
-    table.insert(parts, string.format("CombineEx:%s", ok_combine and "OK" or "FAIL"))
-    overall = overall and ok_combine
+	-- BoxOpen
+	local ok_box = SirinLua.BoxOpenMgr and SirinLua.BoxOpenMgr.loadScripts and SirinLua.BoxOpenMgr.loadScripts() or false
+	logConsole(ok_box, string.format("[Reload] BoxOpen: %s", ok_box and "OK" or "FAIL"))
+	table.insert(parts, string.format("BoxOpen:%s", ok_box and "OK" or "FAIL"))
+	overall = overall and ok_box
 
-    -- Rifts
-    local ok_rifts = _G['RiftMgr'] and RiftMgr.loadScripts and RiftMgr.loadScripts() or false
-    logConsole(ok_rifts, string.format("[Reload] Rifts: %s", ok_rifts and "OK" or "FAIL"))
-    table.insert(parts, string.format("Rifts:%s", ok_rifts and "OK" or "FAIL"))
-    overall = overall and ok_rifts
+	-- CombineEx
+	local ok_combine = _G['CombineExMgr'] and CombineExMgr.loadScripts and CombineExMgr.loadScripts() or false
+	logConsole(ok_combine, string.format("[Reload] CombineEx: %s", ok_combine and "OK" or "FAIL"))
+	table.insert(parts, string.format("CombineEx:%s", ok_combine and "OK" or "FAIL"))
+	overall = overall and ok_combine
 
-    -- MonsterSchedule
-    local ok_sched = _G['MonsterScheduleMgr'] and MonsterScheduleMgr.loadScripts and MonsterScheduleMgr.loadScripts() or false
-    logConsole(ok_sched, string.format("[Reload] MonsterSchedule: %s", ok_sched and "OK" or "FAIL"))
-    table.insert(parts, string.format("MonsterSchedule:%s", ok_sched and "OK" or "FAIL"))
-    overall = overall and ok_sched
+	-- Rifts
+	local ok_rifts = _G['RiftMgr'] and RiftMgr.loadScripts and RiftMgr.loadScripts() or false
+	logConsole(ok_rifts, string.format("[Reload] Rifts: %s", ok_rifts and "OK" or "FAIL"))
+	table.insert(parts, string.format("Rifts:%s", ok_rifts and "OK" or "FAIL"))
+	overall = overall and ok_rifts
 
-    -- Custom Windows (via modCustomWindows loader if present)
-    local ok_cw = _G['modCustomWindows'] and _G['modCustomWindows'].loadScripts and _G['modCustomWindows'].loadScripts() or false
-    logConsole(ok_cw, string.format("[Reload] CustomWindows: %s", ok_cw and "OK" or "FAIL"))
-    table.insert(parts, string.format("CustomWindows:%s", ok_cw and "OK" or "FAIL"))
-    overall = overall and ok_cw
+	-- MonsterSchedule
+	local ok_sched = _G['MonsterScheduleMgr'] and MonsterScheduleMgr.loadScripts and MonsterScheduleMgr.loadScripts() or false
+	logConsole(ok_sched, string.format("[Reload] MonsterSchedule: %s", ok_sched and "OK" or "FAIL"))
+	table.insert(parts, string.format("MonsterSchedule:%s", ok_sched and "OK" or "FAIL"))
+	overall = overall and ok_sched
 
-    -- Custom modules (threads/main/custom/*.lua) safe reload, skip stateful raceKillProgress.lua
-    local ok_custom = true
-    local files = Sirin.getFileList('.\\sirin-lua\\threads\\main\\custom') or {}
-    for _,f in ipairs(files) do
-        local fl = f:lower()
-        if fl:sub(-4) == ".lua" and fl ~= "init.lua" then
-            if fl:find("racekillprogress.lua", 1, true) then
-                logConsole(true, string.format("[Reload] CustomModule %s: SKIP (stateful)", f))
-            else
-                local ok = pcall(dofile, f)
-                ok_custom = ok_custom and ok
-                logConsole(ok, string.format("[Reload] CustomModule %s: %s", f, ok and "OK" or "FAIL"))
-            end
-        end
-    end
-    table.insert(parts, string.format("CustomModules:%s", ok_custom and "OK" or "FAIL"))
-    overall = overall and ok_custom
+	-- Custom Windows
+	local ok_cw = _G['modCustomWindows'] and _G['modCustomWindows'].loadScripts and _G['modCustomWindows'].loadScripts() or false
+	logConsole(ok_cw, string.format("[Reload] CustomWindows: %s", ok_cw and "OK" or "FAIL"))
+	table.insert(parts, string.format("CustomWindows:%s", ok_cw and "OK" or "FAIL"))
+	overall = overall and ok_cw
 
-    postReloadResync()
+	-- Custom modules including raceKillProgress.lua (restore state after)
+	local ok_custom = true
+	local files = Sirin.getFileList('.\\sirin-lua\\threads\\main\\custom') or {}
+	for _,f in ipairs(files) do
+		local fl = f:lower()
+		if fl:sub(-4) == ".lua" and fl ~= "init.lua" then
+			local ok = pcall(dofile, f)
+			ok_custom = ok_custom and ok
+			logConsole(ok, string.format("[Reload] CustomModule %s: %s", f, ok and "OK" or "FAIL"))
+		end
+	end
+	if rkState and _G['raceKillProgress'] and _G['raceKillProgress'].__importState then
+		pcall(_G['raceKillProgress'].__importState, rkState)
+	end
+	table.insert(parts, string.format("CustomModules:%s", ok_custom and "OK" or "FAIL"))
+	overall = overall and ok_custom
 
-    local summary = table.concat(parts, ", ")
-    return overall, summary
+	postReloadResync()
+	resendAllWindows()
+
+	local summary = table.concat(parts, ", ")
+	return overall, summary
 end
 
 function script.onButtonPress(p, dwActWindowID, dwActDataID)
