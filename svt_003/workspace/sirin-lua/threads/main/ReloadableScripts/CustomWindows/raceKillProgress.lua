@@ -5,6 +5,11 @@ local t = {
 		},
 		width = 750,
 		height = 360,
+		-- Centered background sprite (pick suitable sprite indexes)
+		backgroundImage = { 4, 13, 14, 0 },
+		-- Center the background within the window area
+		paddingX = 0,
+		paddingY = 0,
 		layout = {  50, 130, 130, 170, 110 },
 		data = {
 			{
@@ -17,7 +22,7 @@ local t = {
 					name = {
 						text = {
 							default = "Pseudo name",
-						},
+							},
 						color = 0xFF00FF00,
 					},
 					info = {
