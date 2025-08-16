@@ -486,9 +486,10 @@ function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
     local p = Sirin.mainThread.objectToPlayer(pAttObj)
     if not p or not p.m_bOper then return end
 
-    -- Extract monster index (dwIndex) from record set
+    -- Extract monster identifiers from record set
     local pMonFld = Sirin.mainThread.baseToMonsterCharacter(pMonster.m_pRecordSet)
     local monIndex = pMonFld and pMonFld.m_dwIndex or -1
+    local monCode = pMonFld and pMonFld.m_strMobID or ""
 
     local name = p.m_Param.m_dbChar.m_wszCharID
     local race = p:GetObjRace()
@@ -498,10 +499,10 @@ function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
     raceKills[race] = (raceKills[race] or 0) + 1
 
     -- Per-tab filtered totals
-    if monIndex == MON_INDEX_TAB1 then
+    if monCode == "00000" or monIndex == MON_INDEX_TAB1 then
         personalKillsByMonIndex[MON_INDEX_TAB1][getPlayerKey(p)] = (personalKillsByMonIndex[MON_INDEX_TAB1][getPlayerKey(p)] or 0) + 1
         raceKillsByMonIndex[MON_INDEX_TAB1][race] = (raceKillsByMonIndex[MON_INDEX_TAB1][race] or 0) + 1
-    elseif monIndex == MON_INDEX_TAB2 then
+    elseif monCode == "00100" or monIndex == MON_INDEX_TAB2 then
         personalKillsByMonIndex[MON_INDEX_TAB2][getPlayerKey(p)] = (personalKillsByMonIndex[MON_INDEX_TAB2][getPlayerKey(p)] or 0) + 1
         raceKillsByMonIndex[MON_INDEX_TAB2][race] = (raceKillsByMonIndex[MON_INDEX_TAB2][race] or 0) + 1
     end
