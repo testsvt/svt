@@ -368,11 +368,12 @@ function script.mainThreadAsyncCallback(case, param)
 end
 
 -- Hook handlers
-function script.onButtonPress(p, dwActWindowID, dwActDataID)
-    if dwActWindowID == 1 then
+function script.onButtonPress(p, dwActWindowID, dwActButtonID, dwParentWindowID, dwSelectedID)
+    	local id = dwActButtonID or dwActDataID
+	if dwActWindowID == 1 then
         local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
         local fm = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId] and SirinScript_CustomWindowsByLangID[langId][1]
-        local target = fm and fm.data and fm.data[dwActDataID]
+        		local target = fm and fm.data and fm.data[id]
         		if target and target.customWindow == WINDOW_ID then
 			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
 			selectedRow[p.m_id.dwSerial] = selectedRow[p.m_id.dwSerial] or 1
@@ -384,23 +385,23 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
             return
         end
     end
-    if dwActWindowID == WINDOW_ID then
-        if dwActDataID == 1 then
-            selectedRow[p.m_id.dwSerial] = 1
-            sendWindowState(p)
-            return
-        elseif dwActDataID == 6 then
-            selectedRow[p.m_id.dwSerial] = 2
-            sendWindowState(p)
-            return
-        elseif dwActDataID == 4 then
-            Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
-            sendRankingWindow(p)
-            return
-        elseif dwActDataID == 5 then
-            sendRewardWindow(p)
-            return
-        end
+    	if dwActWindowID == WINDOW_ID then
+		if id == 1 then
+			selectedRow[p.m_id.dwSerial] = 1
+			sendWindowState(p)
+			return
+		elseif id == 6 then
+			selectedRow[p.m_id.dwSerial] = 2
+			sendWindowState(p)
+			return
+		elseif id == 4 then
+			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
+			sendRankingWindow(p)
+			return
+		elseif id == 5 then
+			sendRewardWindow(p)
+			return
+		end
     elseif dwActWindowID == WINDOW_ID_REWARD then
         if dwActDataID == 2 then
             local rk = raceKills[getRaceKey(p)] or 0
