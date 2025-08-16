@@ -182,8 +182,8 @@ function script.sendWindowState(p)
 		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 	else
 		-- keep row 1 slots (2..5) as disabled placeholders to preserve first-line layout, clear counters to avoid bars
-		table.insert(w.data, { id = 2, stateFlags = tonumber('011', 2), text = " ", delay = { -1, -1 }, counter = { -1, -1 } })
-		table.insert(w.data, { id = 3, stateFlags = tonumber('011', 2), text = " ", delay = { -1, -1 }, counter = { -1, -1 } })
+		table.insert(w.data, { id = 2, stateFlags = tonumber('011', 2), text = " ", delay = { 4294967295, 4294967295 }, counter = { -1, -1 } })
+		table.insert(w.data, { id = 3, stateFlags = tonumber('011', 2), text = " ", delay = { 4294967295, 4294967295 }, counter = { -1, -1 } })
 		table.insert(w.data, { id = 4, stateFlags = tonumber('011', 2), text = " ", counter = { -1, -1 } })
 		table.insert(w.data, { id = 5, stateFlags = tonumber('011', 2), text = " ", counter = { -1, -1 } })
 		-- show row 2 (7..10)

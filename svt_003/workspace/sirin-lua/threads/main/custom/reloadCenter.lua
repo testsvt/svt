@@ -94,7 +94,11 @@ local function resendAllWindows()
 			for _,wid in ipairs(ids) do
 				local def = defs[wid]
 				if def then
-					NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { def } }, true)
+					-- Ensure id field is set for fallback/raw defs
+					local d = {}
+					for k,v in pairs(def) do d[k]=v end
+					d.id = wid
+					NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { d } }, true)
 				end
 			end
 		end
