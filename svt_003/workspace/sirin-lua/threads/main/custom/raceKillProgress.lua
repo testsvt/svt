@@ -181,8 +181,11 @@ function script.sendWindowState(p)
 		-- hide row 2 (7..10)
 		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 	else
-		-- hide row 1 (2..5)
-		for i = 2, 5 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
+		-- keep row 1 slots (2..5) as blank placeholders to preserve first-line layout
+		table.insert(w.data, { id = 2, stateFlags = tonumber('001', 2), text = " " })
+		table.insert(w.data, { id = 3, stateFlags = tonumber('001', 2), text = " " })
+		table.insert(w.data, { id = 4, stateFlags = tonumber('001', 2), text = " " })
+		table.insert(w.data, { id = 5, stateFlags = tonumber('001', 2) })
 		-- show row 2 (7..10)
 		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
 		table.insert(w.data, { id = 8, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
