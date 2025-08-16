@@ -40,17 +40,17 @@ local function sendWindowStatic(p)
     local def = defs and defs[WINDOW_ID]
     if not def then
         -- fallback static (simple two-lines window) if loader not ready yet
-        def = {
-            id = WINDOW_ID,
-            name = { default = "Reload Center" },
-            width = 420,
-            height = 140,
-            layout = { 0 },
-            data = {
-                { text = { default = "Reload scripts (main/custom & ReloadableScripts)" } },
-                { text = { default = "Run Reload" } },
-            },
-        }
+        		def = {
+			id = WINDOW_ID,
+			name = { default = "Reload Center" },
+			width = 420,
+			height = 140,
+			layout = { 0 },
+			data = {
+				{ id = 1, text = { default = "Reload scripts (main/custom & ReloadableScripts)" } },
+				{ id = 2, text = { default = "Run Reload" } },
+			},
+		}
     end
     NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { def } }, true)
 end
@@ -195,6 +195,10 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
         local fm = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId] and SirinScript_CustomWindowsByLangID[langId][1]
         local target = fm and fm.data and fm.data[dwActDataID]
         if target and target.customWindow == WINDOW_ID then
+            -- force ensure CustomWindows loaded
+            if _G['modCustomWindows'] and _G['modCustomWindows'].loadScripts then
+                pcall(_G['modCustomWindows'].loadScripts)
+            end
             sendWindowStatic(p)
             sendWindowState(p)
             openCustomWindow(p, WINDOW_ID)

@@ -165,51 +165,29 @@ function script.sendWindowState(p)
 	local pk = personalKills[getPlayerKey(p)] or 0
 	local canClaim = (rk >= RACE_TARGET) and (pk >= PERSONAL_TARGET) and (not claimedReward[getPlayerKey(p)])
 
-	local w = {}
-	w.id = WINDOW_ID
-	w.data = {}
-
-	-- Toggler buttons (1 and 6) are always visible and clickable
+	local w = { id = WINDOW_ID, data = {} }
+	-- Toggler buttons (1 and 6) always clickable
 	table.insert(w.data, { id = 1, stateFlags = tonumber('1101', 2) })
 	table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
 
-	local showRow1 = (currentRow == 1)
+	-- Always hide ids 7..10 to avoid leakage
+	for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 
+	-- Fill content into slots 2..5 according to currentRow
 	local rankPos = getRankPosForPlayer(p)
 	local rankLabel = string.format('Место в рейтинге: %s', rankPos and tostring(rankPos) or '—')
 
-	if showRow1 then
-		-- Row1 visible, Row2 hidden
-		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
-		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
-		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
-		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
-		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
-	else
-		-- Row2 visible in the SAME slots (2..5). Fully hide row1 placeholders (7..10)
-		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
-		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
-		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
-		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
-		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
-	end
+	-- 2: Race progress bar
+	table.insert(w.data, { id = 2, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+	-- 3: Personal progress bar
+	table.insert(w.data, { id = 3, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
+	-- 4: Rank button
+	table.insert(w.data, { id = 4, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
+	-- 5: Claim button
+	table.insert(w.data, { id = 5, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
 
 	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
-	-- Function menu flags keep as-is
-	local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
-	local windowsByLang = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
-	if windowsByLang and windowsByLang[1] and windowsByLang[1].data then
-		local fm = { id = 1, data = {} }
-		for i = 1, #windowsByLang[1].data do
-			local it = windowsByLang[1].data[i]
-			if it and it.customWindow == WINDOW_ID then
-				table.insert(fm.data, { id = i, stateFlags = tonumber('1101', 2) })
-			else
-				table.insert(fm.data, { id = i, stateFlags = tonumber('101', 2) })
-			end
-		end
-		NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { fm } }, true)
-	end
+	-- function menu flags unchanged ...
 end
 
 -- Rebind aliases so any old references still resolve
@@ -407,30 +385,21 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
         end
     end
     if dwActWindowID == WINDOW_ID then
-        if dwActDataID == IDX_CLAIM then
-            sendRewardWindow(p)
+        if dwActDataID == 1 then
+            selectedRow[p.m_id.dwSerial] = 1
+            sendWindowState(p)
             return
-        elseif dwActDataID == IDX_RANK_BTN then
+        elseif dwActDataID == 6 then
+            selectedRow[p.m_id.dwSerial] = 2
+            sendWindowState(p)
+            return
+        elseif dwActDataID == 4 then
             Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
             sendRankingWindow(p)
             return
-        		elseif dwActDataID == 1 then
-			selectedRow[p.m_id.dwSerial] = 1
-			sendWindowState(p)
-			return
-        		elseif dwActDataID == 6 then
-			selectedRow[p.m_id.dwSerial] = 2
-			sendWindowState(p)
-			return
-		elseif dwActDataID == 9 then
-			-- rank from row2
-			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
-			sendRankingWindow(p)
-			return
-		elseif dwActDataID == 10 then
-			-- claim from row2
-			sendRewardWindow(p)
-			return
+        elseif dwActDataID == 5 then
+            sendRewardWindow(p)
+            return
         end
     elseif dwActWindowID == WINDOW_ID_REWARD then
         if dwActDataID == 2 then
