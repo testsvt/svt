@@ -89,6 +89,12 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
     end
 end
 
+function script.CPlayer__Load(pPlayer, pUserDB, bFirstStart)
+    -- Preload static + state so client-side opening shows content immediately
+    sendWindowStatic(pPlayer)
+    sendWindowState(pPlayer)
+end
+
 local function autoInit()
     if not _G[moduleName] then
         _G[moduleName] = script
@@ -99,6 +105,7 @@ local function autoInit()
     end
     SirinLua.HookMgr.releaseHookByUID(script.m_strUUID)
     SirinLua.HookMgr.addHook('onPressCustomWindowButton', HOOK_POS.after_event, script.m_strUUID, script.onButtonPress)
+    SirinLua.HookMgr.addHook('CPlayer__Load', HOOK_POS.after_event, script.m_strUUID, script.CPlayer__Load)
 end
 
 autoInit()

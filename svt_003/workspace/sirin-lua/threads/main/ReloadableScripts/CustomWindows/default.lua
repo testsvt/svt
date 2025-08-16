@@ -83,7 +83,6 @@ local t = {
 				icon = { 4, 13, 18, 0 },
 				description = { default = "Reload Center" },
 				customWindow = 10,
-				isGM = true,
 			},
 
 		},
