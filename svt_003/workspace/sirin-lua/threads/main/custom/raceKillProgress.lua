@@ -156,7 +156,8 @@ local function shallowClone(t)
     return c
 end
 
-sendWindowState = function(p)
+-- Redefine as a method on script and alias to globals to survive reload edges
+function script.sendWindowState(p)
     local rk = raceKills[getRaceKey(p)] or 0
     local pk = personalKills[getPlayerKey(p)] or 0
     local canClaim = (rk >= RACE_TARGET) and (pk >= PERSONAL_TARGET) and (not claimedReward[getPlayerKey(p)])
@@ -171,7 +172,7 @@ sendWindowState = function(p)
         stateFlags = tonumber('001', 2),
     })
 
-    -- Race text with progress bar (delay/counter) — do not override text/size
+    -- Race text with progress bar
     table.insert(w.data, {
         id = IDX_RACE_TEXT,
         stateFlags = tonumber('001', 2),
@@ -179,7 +180,7 @@ sendWindowState = function(p)
         counter = { math.min(rk, RACE_TARGET), RACE_TARGET },
     })
 
-    -- Personal text with progress bar (delay/counter) — do not override text/size
+    -- Personal text with progress bar
     table.insert(w.data, {
         id = IDX_PERSONAL_TEXT,
         stateFlags = tonumber('001', 2),
@@ -187,7 +188,7 @@ sendWindowState = function(p)
         counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET },
     })
 
-    -- Rank button with rank text (click to open ranking)
+    -- Rank button with rank text
     local rankPos = getRankPosForPlayer(p)
     local rankLabel = string.format('Место в рейтинге: %s', rankPos and tostring(rankPos) or '—')
     table.insert(w.data, {
@@ -197,20 +198,18 @@ sendWindowState = function(p)
         counter = { -1, -1 },
     })
 
-    -- Claim button always active: opens reward window
+    -- Claim button
     table.insert(w.data, {
         id = IDX_CLAIM,
         stateFlags = tonumber('1101', 2),
         counter = { -1, -1 },
     })
 
-    local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
-    local windowsByLang = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
-
-    -- Send only dynamic state; opening sequence handles ct=1/ct=3/open
     NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
 
-    -- Function Menu flags (make Race Hunt item send server request)
+    -- Update Function Menu flags for this window
+    local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
+    local windowsByLang = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
     if windowsByLang and windowsByLang[1] and windowsByLang[1].data then
         local fm = { id = 1, data = {} }
         for i = 1, #windowsByLang[1].data do
@@ -221,10 +220,13 @@ sendWindowState = function(p)
                 table.insert(fm.data, { id = i, stateFlags = tonumber('101', 2) })
             end
         end
-        -- Update FM flags immediately to avoid scheduling issues
         NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { fm } }, true)
     end
 end
+
+-- Rebind aliases so any old references still resolve
+sendWindowState = script.sendWindowState
+_G['sendWindowState'] = script.sendWindowState
 
 script.visualSeq = script.visualSeq or 0
 
