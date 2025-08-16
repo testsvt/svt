@@ -50,6 +50,27 @@ local function sendWindowState(p)
     NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
 end
 
+local function postReloadResync()
+    -- Re-fetch DB-backed state for online players and races to avoid stale caches after reload
+    local online = Sirin.mainThread.getActivePlayers()
+    local raceSet = {}
+
+    for _,p in ipairs(online) do
+        local serial = p.m_id.dwSerial
+        local race = p:GetObjRace()
+        raceSet[race] = true
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 1, serial) -- personal
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 3, serial) -- claimed
+    end
+
+    for race,_ in pairs(raceSet) do
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 2, race) -- race totals
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, race) -- ranking
+    end
+
+    logConsole(true, "[Reload] Resync queued: personal, claimed, race totals, ranking")
+end
+
 local function reloadAll()
     local overall = true
     local parts = {}
@@ -102,18 +123,25 @@ local function reloadAll()
     table.insert(parts, string.format("CustomWindows:%s", ok_cw and "OK" or "FAIL"))
     overall = overall and ok_cw
 
-    -- Custom modules (threads/main/custom/*.lua) safe reload
+    -- Custom modules (threads/main/custom/*.lua) safe reload, skip stateful raceKillProgress.lua
     local ok_custom = true
     local files = Sirin.getFileList('.\\sirin-lua\\threads\\main\\custom') or {}
     for _,f in ipairs(files) do
-        if f:sub(-4):lower() == ".lua" and f:lower() ~= "init.lua" then
-            local ok = pcall(dofile, f)
-            ok_custom = ok_custom and ok
-            logConsole(ok, string.format("[Reload] CustomModule %s: %s", f, ok and "OK" or "FAIL"))
+        local fl = f:lower()
+        if fl:sub(-4) == ".lua" and fl ~= "init.lua" then
+            if fl:find("racekillprogress.lua", 1, true) then
+                logConsole(true, string.format("[Reload] CustomModule %s: SKIP (stateful)", f))
+            else
+                local ok = pcall(dofile, f)
+                ok_custom = ok_custom and ok
+                logConsole(ok, string.format("[Reload] CustomModule %s: %s", f, ok and "OK" or "FAIL"))
+            end
         end
     end
     table.insert(parts, string.format("CustomModules:%s", ok_custom and "OK" or "FAIL"))
     overall = overall and ok_custom
+
+    postReloadResync()
 
     local summary = table.concat(parts, ", ")
     return overall, summary
@@ -134,9 +162,9 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
         if dwActDataID == IDX_RELOAD then
             local ok, summary = reloadAll()
             if ok then
-                informPlayer(p, { default = "Reload OK: " .. summary })
+                informPlayer(p, { default = "Reload OK: " .. summary .. "; Resync queued" })
             else
-                informPlayer(p, { default = "Reload FAIL: " .. summary })
+                informPlayer(p, { default = "Reload FAIL: " .. summary .. "; Resync queued" })
             end
             sendWindowState(p)
             return
