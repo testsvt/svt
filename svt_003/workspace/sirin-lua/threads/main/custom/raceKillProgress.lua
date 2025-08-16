@@ -27,7 +27,7 @@ local REWARD_COUNT = 10
 
 -- Monster ID filters per tab
 local MON_INDEX_TAB1 = 0   -- 00000
-local MON_INDEX_TAB2 = 100 -- 00100
+local MON_INDEX_TAB2 = 3   -- 00003
 
 -- Per-monsterID aggregated counters
 local raceKillsByMonIndex = {
@@ -199,7 +199,7 @@ function script.sendWindowState(p)
 
 	if currentRow == 1 then
 		-- show row 1 (2..5)
-		table.insert(w.data, { id = 2, stateFlags = tonumber('001', 2), text = "Race kills", delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+		table.insert(w.data, { id = 2, stateFlags = tonumber('001', 2), text = "Race kills", counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
 		table.insert(w.data, { id = 3, stateFlags = tonumber('001', 2), text = "Your kills", delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
 		table.insert(w.data, { id = 4, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
 		table.insert(w.data, { id = 5, stateFlags = tonumber('1101', 2), text = "Claim reward", counter = { -1, -1 } })
@@ -212,7 +212,7 @@ function script.sendWindowState(p)
 		table.insert(w.data, { id = 4, stateFlags = tonumber('011', 2), text = " " })
 		table.insert(w.data, { id = 5, stateFlags = tonumber('011', 2), text = " " })
 		-- show row 2
-		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), text = "Race kills", delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), text = "Race kills", counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
 		table.insert(w.data, { id = 8, stateFlags = tonumber('001', 2), text = "Your kills", delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
 		table.insert(w.data, { id = 9, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
 		table.insert(w.data, { id = 10, stateFlags = tonumber('1101', 2), text = "Claim reward", counter = { -1, -1 } })
@@ -511,7 +511,11 @@ function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
     Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 102, race)
     -- also fetch updated ranking for race to refresh label quickly
     Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, race)
-    sendWindowState(p)
+
+    -- Delay UI refresh slightly to avoid race with async updates
+    scheduleAfter(script.m_strUUID .. '.refresh.' .. tostring(p.m_id.dwSerial), 150, function()
+        sendWindowState(p)
+    end)
 end
 
 function script.CPlayer__Load(pPlayer, pUserDB, bFirstStart)
