@@ -78,6 +78,13 @@ local t = {
 				description = { default = "Race Hunt" },
 				customWindow = 3,
 			},
+			-- New: Reload Center button (GM only)
+			{
+				icon = { 4, 13, 18, 0 },
+				description = { default = "Reload Center" },
+				customWindow = 10,
+				isGM = true,
+			},
 
 		},
 	},

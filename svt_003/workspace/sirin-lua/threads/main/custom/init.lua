@@ -4,3 +4,4 @@
 require('threads.main.custom.demo.bossLifeAnnounce')
 require('threads.main.custom.demo.customWindowDemo')
 require('threads.main.custom.raceKillProgress')
+require('threads.main.custom.reloadCenter')
