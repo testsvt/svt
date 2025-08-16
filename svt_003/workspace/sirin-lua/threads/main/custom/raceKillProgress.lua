@@ -25,6 +25,20 @@ local PERSONAL_TARGET = 5
 local REWARD_ITEM_CODE = 'irtal01'
 local REWARD_COUNT = 10
 
+-- Monster ID filters per tab
+local MON_ID_TAB1 = 0   -- 00000
+local MON_ID_TAB2 = 100 -- 00100
+
+-- Per-monsterID aggregated counters
+local raceKillsByMonId = {
+	[MON_ID_TAB1] = { [0] = 0, [1] = 0, [2] = 0 },
+	[MON_ID_TAB2] = { [0] = 0, [1] = 0, [2] = 0 },
+}
+local personalKillsByMonId = {
+	[MON_ID_TAB1] = {},
+	[MON_ID_TAB2] = {},
+}
+
 -- in-memory cache per race and per player
 local raceKills = { [0] = 0, [1] = 0, [2] = 0 }
 local personalKills = {}
@@ -161,8 +175,19 @@ end
 function script.sendWindowState(p)
 	local serial = p.m_id.dwSerial
 	local currentRow = selectedRow[serial] or 1
-	local rk = raceKills[getRaceKey(p)] or 0
-	local pk = personalKills[getPlayerKey(p)] or 0
+	local rkGlobal = raceKills[getRaceKey(p)] or 0
+	local pkGlobal = personalKills[getPlayerKey(p)] or 0
+
+	-- choose per-tab filtered counters for UI
+	local rk = rkGlobal
+	local pk = pkGlobal
+	if currentRow == 1 then
+		rk = raceKillsByMonId[MON_ID_TAB1][getRaceKey(p)] or 0
+		pk = personalKillsByMonId[MON_ID_TAB1][getPlayerKey(p)] or 0
+	else
+		rk = raceKillsByMonId[MON_ID_TAB2][getRaceKey(p)] or 0
+		pk = personalKillsByMonId[MON_ID_TAB2][getPlayerKey(p)] or 0
+	end
 
 	local w = { id = WINDOW_ID, data = {} }
 	-- togglers always clickable
@@ -181,12 +206,12 @@ function script.sendWindowState(p)
 		-- hide row 2 (7..10)
 		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 	else
-		-- keep row 1 slots (2..5) as disabled placeholders to preserve first-line layout, no delay/counter
+		-- placeholders for row1
 		table.insert(w.data, { id = 2, stateFlags = tonumber('011', 2), text = " " })
 		table.insert(w.data, { id = 3, stateFlags = tonumber('011', 2), text = " " })
 		table.insert(w.data, { id = 4, stateFlags = tonumber('011', 2), text = " " })
 		table.insert(w.data, { id = 5, stateFlags = tonumber('011', 2), text = " " })
-		-- show row 2 (7..10)
+		-- show row 2
 		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), text = "Race kills", delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
 		table.insert(w.data, { id = 8, stateFlags = tonumber('001', 2), text = "Your kills", delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
 		table.insert(w.data, { id = 9, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
@@ -460,10 +485,27 @@ function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
     if not pAttObj or pAttObj.m_ObjID.m_byID ~= ID_CHAR.player then return end
     local p = Sirin.mainThread.objectToPlayer(pAttObj)
     if not p or not p.m_bOper then return end
+
+    -- Extract monster id (dwIndex) from record set
+    local pMonFld = Sirin.mainThread.baseToMonsterCharacter(pMonster.m_pRecordSet)
+    local monId = pMonFld and pMonFld.m_dwIndex or -1
+
     local name = p.m_Param.m_dbChar.m_wszCharID
     local race = p:GetObjRace()
+
+    -- Global totals
     personalKills[getPlayerKey(p)] = (personalKills[getPlayerKey(p)] or 0) + 1
     raceKills[race] = (raceKills[race] or 0) + 1
+
+    -- Per-tab filtered totals
+    if monId == MON_ID_TAB1 then
+        personalKillsByMonId[MON_ID_TAB1][getPlayerKey(p)] = (personalKillsByMonId[MON_ID_TAB1][getPlayerKey(p)] or 0) + 1
+        raceKillsByMonId[MON_ID_TAB1][race] = (raceKillsByMonId[MON_ID_TAB1][race] or 0) + 1
+    elseif monId == MON_ID_TAB2 then
+        personalKillsByMonId[MON_ID_TAB2][getPlayerKey(p)] = (personalKillsByMonId[MON_ID_TAB2][getPlayerKey(p)] or 0) + 1
+        raceKillsByMonId[MON_ID_TAB2][race] = (raceKillsByMonId[MON_ID_TAB2][race] or 0) + 1
+    end
+
     Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 101, string.format('%d|%s|%d', p.m_id.dwSerial, name, race))
     Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 102, race)
     -- also fetch updated ranking for race to refresh label quickly
