@@ -174,51 +174,53 @@ function script.sendWindowState(p)
 	table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
 
 	local showRow1 = (currentRow == 1)
-	local flagRow1 = tonumber(showRow1 and '001' or '011', 2)
-	local flagRow2 = tonumber(showRow1 and '011' or '001', 2)
 
-	-- Row 1 content
-	table.insert(w.data, {
-		id = IDX_RACE_TEXT,
-		stateFlags = flagRow1,
-		delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET },
-		counter = { math.min(rk, RACE_TARGET), RACE_TARGET },
-	})
-	table.insert(w.data, {
-		id = IDX_PERSONAL_TEXT,
-		stateFlags = flagRow1,
-		delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET },
-		counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET },
-	})
 	local rankPos = getRankPosForPlayer(p)
 	local rankLabel = string.format('Место в рейтинге: %s', rankPos and tostring(rankPos) or '—')
-	table.insert(w.data, {
-		id = IDX_RANK_BTN,
-		stateFlags = tonumber((showRow1 and '1101' or '000'), 2),
-		text = rankLabel,
-		counter = { -1, -1 },
-	})
-	table.insert(w.data, {
-		id = IDX_CLAIM,
-		stateFlags = tonumber((showRow1 and '1101' or '000'), 2),
-		counter = { -1, -1 },
-	})
 
-	-- Row 2 content visibility only
-	for i = 7, 10 do
-		table.insert(w.data, { id = i, stateFlags = flagRow2 })
-	end
+	if showRow1 then
+		-- Row 1 content visible with progress bars and active buttons
+		table.insert(w.data, {
+			id = IDX_RACE_TEXT,
+			stateFlags = tonumber('001', 2),
+			delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET },
+			counter = { math.min(rk, RACE_TARGET), RACE_TARGET },
+		})
+		table.insert(w.data, {
+			id = IDX_PERSONAL_TEXT,
+			stateFlags = tonumber('001', 2),
+			delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET },
+			counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET },
+		})
+		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
+		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
 
-	-- Row 2 content: mirror actions (rank button at id=9, claim at id=10) when row2 is active
-	-- Add texts/progress on ids 7-8 already controlled above; now ensure buttons act when row2 visible
-	if not showRow1 then
-		-- id 9 behaves like IDX_RANK_BTN, id 10 like IDX_CLAIM
+		-- Row 2 hidden
+		for i = 7, 10 do
+			table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) })
+		end
+	else
+		-- Row 1 placeholders to preserve layout (disabled, blank)
+		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('011', 2), counter = { -1, -1 }, delay = { 0, 0 } })
+		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('011', 2), counter = { -1, -1 }, delay = { 0, 0 } })
+		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('011', 2) })
+		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('011', 2) })
+
+		-- Row 2 content visible with progress bars and active buttons (mirror of row1)
+		table.insert(w.data, {
+			id = 7,
+			stateFlags = tonumber('001', 2),
+			delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET },
+			counter = { math.min(rk, RACE_TARGET), RACE_TARGET },
+		})
+		table.insert(w.data, {
+			id = 8,
+			stateFlags = tonumber('001', 2),
+			delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET },
+			counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET },
+		})
 		table.insert(w.data, { id = 9, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
 		table.insert(w.data, { id = 10, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
-	else
-		-- when row1 selected keep row2 buttons disabled but visible to keep placement
-		table.insert(w.data, { id = 9, stateFlags = tonumber('011', 2), text = rankLabel, counter = { -1, -1 } })
-		table.insert(w.data, { id = 10, stateFlags = tonumber('011', 2), counter = { -1, -1 } })
 	end
 
 	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
@@ -261,19 +263,36 @@ local function bumpDef(def)
 end
 
 local function setRowVisibility(p, showRow)
-	local w = { id = WINDOW_ID, data = {} }
-	-- keep toggler buttons (1 and 6) always visible and clickable
-	table.insert(w.data, { id = 1, stateFlags = tonumber('1101', 2) })
-	table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
-	local show1 = (showRow == 1)
-	for i = 2, 5 do
-		-- selected row visible, other row visible+disabled to preserve layout placement
-		table.insert(w.data, { id = i, stateFlags = tonumber(show1 and '001' or '011', 2) })
-	end
-	for i = 7, 10 do
-		table.insert(w.data, { id = i, stateFlags = tonumber((not show1) and '001' or '011', 2) })
-	end
-	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
+    local w = { id = WINDOW_ID, data = {} }
+    -- keep toggler buttons (1 and 6) always visible and clickable
+    table.insert(w.data, { id = 1, stateFlags = tonumber('1101', 2) })
+    table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
+    local show1 = (showRow == 1)
+
+    if show1 then
+        -- Row 1 visible (2..5), Row 2 hidden (7..10)
+        for i = 2, 3 do
+            table.insert(w.data, { id = i, stateFlags = tonumber('001', 2) })
+        end
+        for i = 4, 5 do
+            table.insert(w.data, { id = i, stateFlags = tonumber('1101', 2) })
+        end
+        for i = 7, 10 do
+            table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) })
+        end
+    else
+        -- Row 2 visible (7..10), keep Row 1 placeholders visible+disabled to preserve first row slots
+        for i = 2, 5 do
+            table.insert(w.data, { id = i, stateFlags = tonumber('011', 2) })
+        end
+        for i = 7, 8 do
+            table.insert(w.data, { id = i, stateFlags = tonumber('001', 2) })
+        end
+        for i = 9, 10 do
+            table.insert(w.data, { id = i, stateFlags = tonumber('1101', 2) })
+        end
+    end
+    NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
 end
 
 scheduleAfter = function(uid, delayMs, fn)
