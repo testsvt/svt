@@ -187,7 +187,7 @@ CREATE PROCEDURE dbo.Sirin_LoadRaceHunt_PersonalTab
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT PlayerSerial, Tab, PersonalKills, Claimed
+    SELECT CAST(Tab AS binary(1)) AS Tab, PlayerSerial, PersonalKills
     FROM dbo.Sirin_RaceHunt_PersonalTab WITH (READCOMMITTEDLOCK)
     WHERE PlayerSerial = @PlayerSerial AND Tab = @Tab;
 END;
@@ -202,7 +202,7 @@ CREATE PROCEDURE dbo.Sirin_LoadRaceHunt_RaceTab
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT RaceCode, Tab, RaceKills
+    SELECT CAST(Tab AS binary(1)) AS Tab, CAST(RaceCode AS binary(1)) AS RaceCode, RaceKills
     FROM dbo.Sirin_RaceHunt_RaceTab WITH (READCOMMITTEDLOCK)
     WHERE RaceCode = @RaceCode AND Tab = @Tab;
 END;
@@ -217,7 +217,7 @@ CREATE PROCEDURE dbo.Sirin_LoadRaceHunt_ClaimedTab
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT PlayerSerial, Tab, Claimed
+    SELECT CAST(Tab AS binary(1)) AS Tab, PlayerSerial, CAST(Claimed AS binary(1)) AS Claimed
     FROM dbo.Sirin_RaceHunt_PersonalTab WITH (READCOMMITTEDLOCK)
     WHERE PlayerSerial = @PlayerSerial AND Tab = @Tab;
 END;
@@ -299,6 +299,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SELECT TOP (5)
+      CAST(@Tab AS binary(1)) AS Tab,
       CAST(RaceCode AS binary(1)) AS RaceCode,
       CAST(PlayerName AS binary(16)) AS PlayerName,
       PersonalKills

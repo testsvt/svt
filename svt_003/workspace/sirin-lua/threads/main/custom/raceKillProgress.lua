@@ -380,62 +380,63 @@ end
 -- Async roundtrip handlers (worldDB thread <-> main)
 function script.mainThreadAsyncCallback(case, param)
     if case == 1 then
-        -- loaded personal progress
-        if not param then return end
-        local ret = param:GetList()
-        for _,row in ipairs(ret) do
-            local ok, serial = row:PopInt32(); if not ok then break end
-            local ok2, val = row:PopInt32(); if not ok2 then break end
-            personalKills[serial] = val
-            loadTracker[serial] = loadTracker[serial] or {}
-            loadTracker[serial].personalLoaded = true
-            trySendWindowForSerial(serial)
-        end
+        -- legacy loaded personal progress (ignored)
     elseif case == 2 then
-        -- loaded race progress
-        if not param then return end
-        local ret = param:GetList()
-        for _,row in ipairs(ret) do
-            local ok, race = row:PopInt8(); if not ok then break end
-            local ok2, val = row:PopInt32(); if not ok2 then break end
-            raceKills[race] = val
-            local online = Sirin.mainThread.getActivePlayers()
-            for _,p in ipairs(online) do
-                if p:GetObjRace() == race then
-                    local serial = p.m_id.dwSerial
-                    loadTracker[serial] = loadTracker[serial] or {}
-                    loadTracker[serial].raceLoaded = true
-                    loadTracker[serial].race = race
-                    trySendWindowForSerial(serial)
-                end
-            end
-        end
+        -- legacy loaded race progress (ignored)
     elseif case == 3 then
         -- save ack
     elseif case == 4 then
-        -- loaded claimed flags
+        -- legacy loaded claimed flags (ignored)
+    elseif case == 5 then
+        -- legacy loaded ranking (ignored)
+    elseif case == 201 then
+        -- per-tab personal
         if not param then return end
         local ret = param:GetList()
         for _,row in ipairs(ret) do
-            local ok, serial = row:PopInt32(); if not ok then break end
-            local ok2, was = row:PopInt8(); if not ok2 then break end
-            claimedReward[serial] = (was ~= 0)
+            local okTab, tab = row:PopInt8(); if not okTab then break end
+            local okSerial, serial = row:PopInt32(); if not okSerial then break end
+            local okKills, kills = row:PopInt32(); if not okKills then break end
+            if tab == 1 then personalKillsByMonIndex[MON_INDEX_TAB1][serial] = kills else personalKillsByMonIndex[MON_INDEX_TAB2][serial] = kills end
         end
-    elseif case == 5 then
-        -- loaded ranking for player's race
+    elseif case == 202 then
+        -- per-tab race
         if not param then return end
         local ret = param:GetList()
+        for _,row in ipairs(ret) do
+            local okTab, tab = row:PopInt8(); if not okTab then break end
+            local okRace, race = row:PopInt8(); if not okRace then break end
+            local okKills, kills = row:PopInt32(); if not okKills then break end
+            if tab == 1 then raceKillsByMonIndex[MON_INDEX_TAB1][race] = kills else raceKillsByMonIndex[MON_INDEX_TAB2][race] = kills end
+        end
+    elseif case == 203 then
+        -- per-tab claimed
+        if not param then return end
+        local ret = param:GetList()
+        for _,row in ipairs(ret) do
+            local okTab, tab = row:PopInt8(); if not okTab then break end
+            local okSerial, serial = row:PopInt32(); if not okSerial then break end
+            local okClaim, claimed = row:PopInt8(); if not okClaim then break end
+            claimedRewardTab[tab][serial] = (claimed ~= 0)
+        end
+    elseif case == 205 then
+        -- per-tab top5
+        if not param then return end
+        local ret = param:GetList()
+        local parsedTab = nil
         local parsedRace = nil
         local data = {}
         for _,row in ipairs(ret) do
-            local okRace, rc = row:PopInt8(); if not okRace then break end
-            parsedRace = parsedRace or rc
+            local okTab, tab = row:PopInt8(); if not okTab then break end
+            parsedTab = parsedTab or tab
+            local okRace, race = row:PopInt8(); if not okRace then break end
+            parsedRace = parsedRace or race
             local okName, name = row:PopString(16); if not okName then break end
             local okKills, kills = row:PopInt32(); if not okKills then break end
             table.insert(data, { name = name, kills = kills })
         end
-        if parsedRace ~= nil then
-            raceTop[parsedRace] = data
+        if parsedTab and parsedRace then
+            raceTopTab[parsedTab][parsedRace] = data
             periodicRefresh()
         end
     end
@@ -551,8 +552,13 @@ function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
         raceKillsByMonIndex[MON_INDEX_TAB2][race] = (raceKillsByMonIndex[MON_INDEX_TAB2][race] or 0) + 1
     end
 
-    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 101, string.format('%d|%s|%d', p.m_id.dwSerial, name, race))
-    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 102, race)
+    -- per-tab DB increments
+    local tab = (monIndex == MON_INDEX_TAB1) and 1 or ((monIndex == MON_INDEX_TAB2) and 2 or nil)
+    if tab then
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 301, string.format('%d|%s|%d|%d', p.m_id.dwSerial, name, race, tab))
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 302, string.format('%d|%d', race, tab))
+    end
+
     -- also fetch updated ranking for race to refresh label quickly
     Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, race)
 
@@ -566,10 +572,16 @@ function script.CPlayer__Load(pPlayer, pUserDB, bFirstStart)
     script.sentStatics[pPlayer.m_id.dwSerial] = {}
     loadTracker[pPlayer.m_id.dwSerial] = { personalLoaded = false, raceLoaded = false, race = pPlayer:GetObjRace() }
     selectedRow[pPlayer.m_id.dwSerial] = 1
-    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 1, pPlayer.m_id.dwSerial)
-    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 2, pPlayer:GetObjRace())
-    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 3, pPlayer.m_id.dwSerial)
-    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, pPlayer:GetObjRace())
+    -- per-tab loads
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 201, string.format('%d|%d', pPlayer.m_id.dwSerial, 1))
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 201, string.format('%d|%d', pPlayer.m_id.dwSerial, 2))
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 202, string.format('%d|%d', pPlayer:GetObjRace(), 1))
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 202, string.format('%d|%d', pPlayer:GetObjRace(), 2))
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 203, string.format('%d|%d', pPlayer.m_id.dwSerial, 1))
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 203, string.format('%d|%d', pPlayer.m_id.dwSerial, 2))
+    -- top5 per tab
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 205, string.format('%d|%d', pPlayer:GetObjRace(), 1))
+    Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 205, string.format('%d|%d', pPlayer:GetObjRace(), 2))
     initStaticsForPlayer(pPlayer)
     sendFunctionMenuFlags(pPlayer)
     sendWindowState(pPlayer)

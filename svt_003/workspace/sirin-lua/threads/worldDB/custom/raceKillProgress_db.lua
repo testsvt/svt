@@ -143,6 +143,63 @@ function M.asyncHandler(case, param)
             execNoResult('{ CALL dbo.Sirin_SetRaceHunt_Claimed(?) }', { {p=1,t='i32',v=playerSerial} })
         end)
         Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 3, 0)
+    elseif case == 201 then
+        -- load personal by playerSerial and tab (param: "serial|tab") -> returns set(tab, serial, personal)
+        local serial, tab = tostring(param):match('^(%d+)|(%d+)$')
+        serial = tonumber(serial or '0') or 0
+        tab = tonumber(tab or '1') or 1
+        local set = execSelect('{ CALL dbo.Sirin_LoadRaceHunt_PersonalTab(?, ?) }', { {p=1,t='i32',v=serial}, {p=2,t='i8',v=tab} }, 9)
+        Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 201, set)
+    elseif case == 202 then
+        -- load race by raceCode and tab (param: "race|tab") -> returns set(tab, race, raceKills)
+        local race, tab = tostring(param):match('^(%d+)|(%d+)$')
+        race = tonumber(race or '0') or 0
+        tab = tonumber(tab or '1') or 1
+        local set = execSelect('{ CALL dbo.Sirin_LoadRaceHunt_RaceTab(?, ?) }', { {p=1,t='i8',v=race}, {p=2,t='i8',v=tab} }, 6)
+        Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 202, set)
+    elseif case == 203 then
+        -- load claimed by serial and tab (param: "serial|tab") -> returns set(tab, serial, claimed)
+        local serial, tab = tostring(param):match('^(%d+)|(%d+)$')
+        serial = tonumber(serial or '0') or 0
+        tab = tonumber(tab or '1') or 1
+        local set = execSelect('{ CALL dbo.Sirin_LoadRaceHunt_ClaimedTab(?, ?) }', { {p=1,t='i32',v=serial}, {p=2,t='i8',v=tab} }, 6)
+        Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 203, set)
+    elseif case == 205 then
+        -- load top5 by race and tab (param: "race|tab")
+        local race, tab = tostring(param):match('^(%d+)|(%d+)$')
+        race = tonumber(race or '0') or 0
+        tab = tonumber(tab or '1') or 1
+        local set = execSelect('{ CALL dbo.Sirin_LoadRaceHunt_Top5Tab(?, ?) }', { {p=1,t='i8',v=race}, {p=2,t='i8',v=tab} }, 22)
+        Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 205, set)
+    elseif case == 301 then
+        -- inc personal by serial|name|race|tab
+        local serial, name, race, tab = tostring(param):match('^(%d+)|([^|]+)|(%d+)|(%d+)$')
+        serial = tonumber(serial or '0') or 0
+        race = tonumber(race or '0') or 0
+        tab = tonumber(tab or '1') or 1
+        name = name or ''
+        withTx(function()
+            execNoResult('{ CALL dbo.Sirin_IncRaceHunt_PersonalTab(?, ?, ?, ?) }', { {p=1,t='i32',v=serial}, {p=2,t='s16',v=name}, {p=3,t='i8',v=race}, {p=4,t='i8',v=tab} })
+        end)
+        Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 3, 0)
+    elseif case == 302 then
+        -- inc race by race|tab
+        local race, tab = tostring(param):match('^(%d+)|(%d+)$')
+        race = tonumber(race or '0') or 0
+        tab = tonumber(tab or '1') or 1
+        withTx(function()
+            execNoResult('{ CALL dbo.Sirin_IncRaceHunt_RaceTab(?, ?) }', { {p=1,t='i8',v=race}, {p=2,t='i8',v=tab} })
+        end)
+        Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 3, 0)
+    elseif case == 303 then
+        -- set claimed by serial|tab
+        local serial, tab = tostring(param):match('^(%d+)|(%d+)$')
+        serial = tonumber(serial or '0') or 0
+        tab = tonumber(tab or '1') or 1
+        withTx(function()
+            execNoResult('{ CALL dbo.Sirin_SetRaceHunt_ClaimedTab(?, ?) }', { {p=1,t='i32',v=serial}, {p=2,t='i8',v=tab} })
+        end)
+        Sirin.processAsyncCallback(0, 'sirin.guard.mainThread', 'SirinLua', 'asyncHandler', 3, 0)
     end
 end
 
