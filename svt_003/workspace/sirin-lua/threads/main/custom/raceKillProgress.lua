@@ -179,53 +179,26 @@ function script.sendWindowState(p)
 	local rankLabel = string.format('Место в рейтинге: %s', rankPos and tostring(rankPos) or '—')
 
 	if showRow1 then
-		-- Row 1 content visible with progress bars and active buttons
-		table.insert(w.data, {
-			id = IDX_RACE_TEXT,
-			stateFlags = tonumber('001', 2),
-			delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET },
-			counter = { math.min(rk, RACE_TARGET), RACE_TARGET },
-		})
-		table.insert(w.data, {
-			id = IDX_PERSONAL_TEXT,
-			stateFlags = tonumber('001', 2),
-			delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET },
-			counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET },
-		})
+		-- Row1 visible, Row2 hidden
+		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
 		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
 		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
-
-		-- Row 2 hidden
-		for i = 7, 10 do
-			table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) })
-		end
+		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 	else
-		-- Row 1 placeholders to preserve layout (disabled, blank)
-		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('011', 2), counter = { -1, -1 }, delay = { 0, 0 } })
-		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('011', 2), counter = { -1, -1 }, delay = { 0, 0 } })
-		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('011', 2) })
-		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('011', 2) })
-
-		-- Row 2 content visible with progress bars and active buttons (mirror of row1)
-		table.insert(w.data, {
-			id = 7,
-			stateFlags = tonumber('001', 2),
-			delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET },
-			counter = { math.min(rk, RACE_TARGET), RACE_TARGET },
-		})
-		table.insert(w.data, {
-			id = 8,
-			stateFlags = tonumber('001', 2),
-			delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET },
-			counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET },
-		})
+		-- Row2 visible, Row1 hidden
+		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('000', 2) })
+		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('000', 2) })
+		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('000', 2) })
+		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('000', 2) })
+		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+		table.insert(w.data, { id = 8, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
 		table.insert(w.data, { id = 9, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
 		table.insert(w.data, { id = 10, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
 	end
 
 	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
-
-	-- Update Function Menu flags (keep as-is)
+	-- Function menu flags keep as-is
 	local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
 	local windowsByLang = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
 	if windowsByLang and windowsByLang[1] and windowsByLang[1].data then
@@ -262,37 +235,10 @@ local function bumpDef(def)
     return c
 end
 
+-- deprecated: setRowVisibility handled inside sendWindowState now
 local function setRowVisibility(p, showRow)
-    local w = { id = WINDOW_ID, data = {} }
-    -- keep toggler buttons (1 and 6) always visible and clickable
-    table.insert(w.data, { id = 1, stateFlags = tonumber('1101', 2) })
-    table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
-    local show1 = (showRow == 1)
-
-    if show1 then
-        -- Row 1 visible (2..5), Row 2 hidden (7..10)
-        for i = 2, 3 do
-            table.insert(w.data, { id = i, stateFlags = tonumber('001', 2) })
-        end
-        for i = 4, 5 do
-            table.insert(w.data, { id = i, stateFlags = tonumber('1101', 2) })
-        end
-        for i = 7, 10 do
-            table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) })
-        end
-    else
-        -- Row 2 visible (7..10), keep Row 1 placeholders visible+disabled to preserve first row slots
-        for i = 2, 5 do
-            table.insert(w.data, { id = i, stateFlags = tonumber('011', 2) })
-        end
-        for i = 7, 8 do
-            table.insert(w.data, { id = i, stateFlags = tonumber('001', 2) })
-        end
-        for i = 9, 10 do
-            table.insert(w.data, { id = i, stateFlags = tonumber('1101', 2) })
-        end
-    end
-    NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
+    selectedRow[p.m_id.dwSerial] = (showRow == 1) and 1 or 2
+    sendWindowState(p)
 end
 
 scheduleAfter = function(uid, delayMs, fn)
@@ -452,12 +398,11 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
         local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
         local fm = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId] and SirinScript_CustomWindowsByLangID[langId][1]
         local target = fm and fm.data and fm.data[dwActDataID]
-        if target and target.customWindow == WINDOW_ID then
-            Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
-            selectedRow[p.m_id.dwSerial] = selectedRow[p.m_id.dwSerial] or 1
-            sendWindowState(p)
-            setRowVisibility(p, selectedRow[p.m_id.dwSerial])
-            return
+        		if target and target.customWindow == WINDOW_ID then
+			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
+			selectedRow[p.m_id.dwSerial] = selectedRow[p.m_id.dwSerial] or 1
+			sendWindowState(p)
+			return
         elseif target and target.customWindow == WINDOW_ID_RANK then
             Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
             sendRankingWindow(p)
@@ -472,13 +417,13 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
             Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
             sendRankingWindow(p)
             return
-        elseif dwActDataID == 1 then
-            selectedRow[p.m_id.dwSerial] = 1
-            setRowVisibility(p, 1)
-            return
+        		elseif dwActDataID == 1 then
+			selectedRow[p.m_id.dwSerial] = 1
+			sendWindowState(p)
+			return
         		elseif dwActDataID == 6 then
 			selectedRow[p.m_id.dwSerial] = 2
-			setRowVisibility(p, 2)
+			sendWindowState(p)
 			return
 		elseif dwActDataID == 9 then
 			-- rank from row2
