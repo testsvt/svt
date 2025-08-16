@@ -186,15 +186,12 @@ function script.sendWindowState(p)
 		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
 		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 	else
-		-- Row2 visible, Row1 hidden
-		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('000', 2) })
-		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('000', 2) })
-		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('000', 2) })
-		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('000', 2) })
-		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
-		table.insert(w.data, { id = 8, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
-		table.insert(w.data, { id = 9, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
-		table.insert(w.data, { id = 10, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
+		-- Row2 visible in the SAME slots (2..5). Fully hide row1 placeholders (7..10)
+		table.insert(w.data, { id = IDX_RACE_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+		table.insert(w.data, { id = IDX_PERSONAL_TEXT, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
+		table.insert(w.data, { id = IDX_RANK_BTN, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
+		table.insert(w.data, { id = IDX_CLAIM, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
+		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 	end
 
 	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
