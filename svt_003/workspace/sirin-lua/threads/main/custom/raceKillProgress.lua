@@ -26,17 +26,17 @@ local REWARD_ITEM_CODE = 'irtal01'
 local REWARD_COUNT = 10
 
 -- Monster ID filters per tab
-local MON_ID_TAB1 = 0   -- 00000
-local MON_ID_TAB2 = 100 -- 00100
+local MON_CODE_TAB1 = "00000"
+local MON_CODE_TAB2 = "00100"
 
 -- Per-monsterID aggregated counters
-local raceKillsByMonId = {
-	[MON_ID_TAB1] = { [0] = 0, [1] = 0, [2] = 0 },
-	[MON_ID_TAB2] = { [0] = 0, [1] = 0, [2] = 0 },
+local raceKillsByMonCode = {
+	[MON_CODE_TAB1] = { [0] = 0, [1] = 0, [2] = 0 },
+	[MON_CODE_TAB2] = { [0] = 0, [1] = 0, [2] = 0 },
 }
-local personalKillsByMonId = {
-	[MON_ID_TAB1] = {},
-	[MON_ID_TAB2] = {},
+local personalKillsByMonCode = {
+	[MON_CODE_TAB1] = {},
+	[MON_CODE_TAB2] = {},
 }
 
 -- in-memory cache per race and per player
@@ -182,11 +182,11 @@ function script.sendWindowState(p)
 	local rk = rkGlobal
 	local pk = pkGlobal
 	if currentRow == 1 then
-		rk = raceKillsByMonId[MON_ID_TAB1][getRaceKey(p)] or 0
-		pk = personalKillsByMonId[MON_ID_TAB1][getPlayerKey(p)] or 0
+		rk = raceKillsByMonCode[MON_CODE_TAB1][getRaceKey(p)] or 0
+		pk = personalKillsByMonCode[MON_CODE_TAB1][getPlayerKey(p)] or 0
 	else
-		rk = raceKillsByMonId[MON_ID_TAB2][getRaceKey(p)] or 0
-		pk = personalKillsByMonId[MON_ID_TAB2][getPlayerKey(p)] or 0
+		rk = raceKillsByMonCode[MON_CODE_TAB2][getRaceKey(p)] or 0
+		pk = personalKillsByMonCode[MON_CODE_TAB2][getPlayerKey(p)] or 0
 	end
 
 	local w = { id = WINDOW_ID, data = {} }
@@ -486,9 +486,9 @@ function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
     local p = Sirin.mainThread.objectToPlayer(pAttObj)
     if not p or not p.m_bOper then return end
 
-    -- Extract monster id (dwIndex) from record set
+    -- Extract monster code (string) from record set
     local pMonFld = Sirin.mainThread.baseToMonsterCharacter(pMonster.m_pRecordSet)
-    local monId = pMonFld and pMonFld.m_dwIndex or -1
+    local monCode = pMonFld and pMonFld.m_strMobID or ""
 
     local name = p.m_Param.m_dbChar.m_wszCharID
     local race = p:GetObjRace()
@@ -498,12 +498,12 @@ function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
     raceKills[race] = (raceKills[race] or 0) + 1
 
     -- Per-tab filtered totals
-    if monId == MON_ID_TAB1 then
-        personalKillsByMonId[MON_ID_TAB1][getPlayerKey(p)] = (personalKillsByMonId[MON_ID_TAB1][getPlayerKey(p)] or 0) + 1
-        raceKillsByMonId[MON_ID_TAB1][race] = (raceKillsByMonId[MON_ID_TAB1][race] or 0) + 1
-    elseif monId == MON_ID_TAB2 then
-        personalKillsByMonId[MON_ID_TAB2][getPlayerKey(p)] = (personalKillsByMonId[MON_ID_TAB2][getPlayerKey(p)] or 0) + 1
-        raceKillsByMonId[MON_ID_TAB2][race] = (raceKillsByMonId[MON_ID_TAB2][race] or 0) + 1
+    if monCode == MON_CODE_TAB1 then
+        personalKillsByMonCode[MON_CODE_TAB1][getPlayerKey(p)] = (personalKillsByMonCode[MON_CODE_TAB1][getPlayerKey(p)] or 0) + 1
+        raceKillsByMonCode[MON_CODE_TAB1][race] = (raceKillsByMonCode[MON_CODE_TAB1][race] or 0) + 1
+    elseif monCode == MON_CODE_TAB2 then
+        personalKillsByMonCode[MON_CODE_TAB2][getPlayerKey(p)] = (personalKillsByMonCode[MON_CODE_TAB2][getPlayerKey(p)] or 0) + 1
+        raceKillsByMonCode[MON_CODE_TAB2][race] = (raceKillsByMonCode[MON_CODE_TAB2][race] or 0) + 1
     end
 
     Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 101, string.format('%d|%s|%d', p.m_id.dwSerial, name, race))
