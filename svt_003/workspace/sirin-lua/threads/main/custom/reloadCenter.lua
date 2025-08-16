@@ -15,6 +15,14 @@ local function informPlayer(p, text)
     NetMgr.privateAnnounceMsg(p, text, 0xFFFF, ANN_TYPE.mid3, 0xFF00FF00)
 end
 
+local function logConsole(ok, msg)
+    if ok then
+        Sirin.console.LogEx(ConsoleForeground.GREEN, ConsoleBackground.BLACK, msg .. "\n")
+    else
+        Sirin.console.LogEx(ConsoleForeground.RED, ConsoleBackground.BLACK, msg .. "\n")
+    end
+end
+
 local function openCustomWindow(p, windowId)
     local buf = Sirin.mainThread.CLuaSendBuffer.Instance()
     buf:Init()
@@ -43,25 +51,72 @@ local function sendWindowState(p)
 end
 
 local function reloadAll()
-    local ok = true
-    -- reload GMCommands, NPCButtons, PotionEffect, CustomWindows
-    ok = SirinLua.GmCommMgr.loadScripts() and ok
-    ok = SirinLua.ButtonMgr.loadScripts() and ok
-    ok = SirinLua.PotionMgr.loadScripts() and ok
-    ok = true and ok
-    -- Custom windows reload is handled by raceKillProgress module loader normally; force language tables rebuild via demo approach
-    local loaded = _G['SirinScript_CustomWindows'] ~= nil
-    if loaded then
-        -- emulate demo loader refresh by rebuilding language split, if available
-        local lngAst = Sirin.CLanguageAsset.instance()
-        local langs = lngAst and lngAst:getLanguageTable() or {}
-        _G['SirinScript_CustomWindowsByLangID'] = {}
-        for _,l in ipairs(langs) do
-            -- fallback: pass through current defs unmodified per language
-            _G['SirinScript_CustomWindowsByLangID'][l[1]] = _G['SirinScript_CustomWindows']
+    local overall = true
+    local parts = {}
+
+    -- GMCommands
+    local ok_gm = SirinLua.GmCommMgr and SirinLua.GmCommMgr.loadScripts and SirinLua.GmCommMgr.loadScripts() or false
+    logConsole(ok_gm, string.format("[Reload] GMCommands: %s", ok_gm and "OK" or "FAIL"))
+    table.insert(parts, string.format("GMCommands:%s", ok_gm and "OK" or "FAIL"))
+    overall = overall and ok_gm
+
+    -- NPCButtons
+    local ok_npc = SirinLua.ButtonMgr and SirinLua.ButtonMgr.loadScripts and SirinLua.ButtonMgr.loadScripts() or false
+    logConsole(ok_npc, string.format("[Reload] NPCButtons: %s", ok_npc and "OK" or "FAIL"))
+    table.insert(parts, string.format("NPCButtons:%s", ok_npc and "OK" or "FAIL"))
+    overall = overall and ok_npc
+
+    -- PotionEffect
+    local ok_potion = SirinLua.PotionMgr and SirinLua.PotionMgr.loadScripts and SirinLua.PotionMgr.loadScripts() or false
+    logConsole(ok_potion, string.format("[Reload] PotionEffect: %s", ok_potion and "OK" or "FAIL"))
+    table.insert(parts, string.format("Potion:%s", ok_potion and "OK" or "FAIL"))
+    overall = overall and ok_potion
+
+    -- BoxOpen
+    local ok_box = SirinLua.BoxOpenMgr and SirinLua.BoxOpenMgr.loadScripts and SirinLua.BoxOpenMgr.loadScripts() or false
+    logConsole(ok_box, string.format("[Reload] BoxOpen: %s", ok_box and "OK" or "FAIL"))
+    table.insert(parts, string.format("BoxOpen:%s", ok_box and "OK" or "FAIL"))
+    overall = overall and ok_box
+
+    -- CombineEx
+    local ok_combine = _G['CombineExMgr'] and CombineExMgr.loadScripts and CombineExMgr.loadScripts() or false
+    logConsole(ok_combine, string.format("[Reload] CombineEx: %s", ok_combine and "OK" or "FAIL"))
+    table.insert(parts, string.format("CombineEx:%s", ok_combine and "OK" or "FAIL"))
+    overall = overall and ok_combine
+
+    -- Rifts
+    local ok_rifts = _G['RiftMgr'] and RiftMgr.loadScripts and RiftMgr.loadScripts() or false
+    logConsole(ok_rifts, string.format("[Reload] Rifts: %s", ok_rifts and "OK" or "FAIL"))
+    table.insert(parts, string.format("Rifts:%s", ok_rifts and "OK" or "FAIL"))
+    overall = overall and ok_rifts
+
+    -- MonsterSchedule
+    local ok_sched = _G['MonsterScheduleMgr'] and MonsterScheduleMgr.loadScripts and MonsterScheduleMgr.loadScripts() or false
+    logConsole(ok_sched, string.format("[Reload] MonsterSchedule: %s", ok_sched and "OK" or "FAIL"))
+    table.insert(parts, string.format("MonsterSchedule:%s", ok_sched and "OK" or "FAIL"))
+    overall = overall and ok_sched
+
+    -- Custom Windows (via modCustomWindows loader if present)
+    local ok_cw = _G['modCustomWindows'] and _G['modCustomWindows'].loadScripts and _G['modCustomWindows'].loadScripts() or false
+    logConsole(ok_cw, string.format("[Reload] CustomWindows: %s", ok_cw and "OK" or "FAIL"))
+    table.insert(parts, string.format("CustomWindows:%s", ok_cw and "OK" or "FAIL"))
+    overall = overall and ok_cw
+
+    -- Custom modules (threads/main/custom/*.lua) safe reload
+    local ok_custom = true
+    local files = Sirin.getFileList('.\\sirin-lua\\threads\\main\\custom') or {}
+    for _,f in ipairs(files) do
+        if f:sub(-4):lower() == ".lua" and f:lower() ~= "init.lua" then
+            local ok = pcall(dofile, f)
+            ok_custom = ok_custom and ok
+            logConsole(ok, string.format("[Reload] CustomModule %s: %s", f, ok and "OK" or "FAIL"))
         end
     end
-    return ok
+    table.insert(parts, string.format("CustomModules:%s", ok_custom and "OK" or "FAIL"))
+    overall = overall and ok_custom
+
+    local summary = table.concat(parts, ", ")
+    return overall, summary
 end
 
 function script.onButtonPress(p, dwActWindowID, dwActDataID)
@@ -77,11 +132,11 @@ function script.onButtonPress(p, dwActWindowID, dwActDataID)
         end
     elseif dwActWindowID == WINDOW_ID then
         if dwActDataID == IDX_RELOAD then
-            local ok = reloadAll()
+            local ok, summary = reloadAll()
             if ok then
-                informPlayer(p, { default = "Reload completed successfully" })
+                informPlayer(p, { default = "Reload OK: " .. summary })
             else
-                informPlayer(p, { default = "Reload failed (see logs)" })
+                informPlayer(p, { default = "Reload FAIL: " .. summary })
             end
             sendWindowState(p)
             return
