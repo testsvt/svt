@@ -181,11 +181,11 @@ function script.sendWindowState(p)
 		-- hide row 2 (7..10)
 		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
 	else
-		-- keep row 1 slots (2..5) as disabled placeholders to preserve first-line layout, clear counters to avoid bars
-		table.insert(w.data, { id = 2, stateFlags = tonumber('011', 2), text = " ", delay = { 4294967295, 4294967295 }, counter = { -1, -1 } })
-		table.insert(w.data, { id = 3, stateFlags = tonumber('011', 2), text = " ", delay = { 4294967295, 4294967295 }, counter = { -1, -1 } })
-		table.insert(w.data, { id = 4, stateFlags = tonumber('011', 2), text = " ", counter = { -1, -1 } })
-		table.insert(w.data, { id = 5, stateFlags = tonumber('011', 2), text = " ", counter = { -1, -1 } })
+		-- keep row 1 slots (2..5) as disabled placeholders to preserve first-line layout, no delay/counter
+		table.insert(w.data, { id = 2, stateFlags = tonumber('011', 2), text = " " })
+		table.insert(w.data, { id = 3, stateFlags = tonumber('011', 2), text = " " })
+		table.insert(w.data, { id = 4, stateFlags = tonumber('011', 2), text = " " })
+		table.insert(w.data, { id = 5, stateFlags = tonumber('011', 2), text = " " })
 		-- show row 2 (7..10)
 		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), text = "Race kills", delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
 		table.insert(w.data, { id = 8, stateFlags = tonumber('001', 2), text = "Your kills", delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
@@ -220,6 +220,16 @@ end
 local function setRowVisibility(p, showRow)
     selectedRow[p.m_id.dwSerial] = (showRow == 1) and 1 or 2
     sendWindowState(p)
+end
+
+local function resendRaceWindowStatic(p)
+	local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
+	local defs = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
+	local def = defs and defs[WINDOW_ID]
+	if def then
+		local defBumped = bumpDef(def)
+		NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { defBumped } }, true)
+	end
 end
 
 scheduleAfter = function(uid, delayMs, fn)
@@ -383,6 +393,7 @@ function script.onButtonPress(p, dwActWindowID, dwActButtonID, dwParentWindowID,
 		if target and target.customWindow == WINDOW_ID then
 			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
 			selectedRow[p.m_id.dwSerial] = selectedRow[p.m_id.dwSerial] or 1
+			resendRaceWindowStatic(p)
 			sendWindowState(p)
 			return
 		elseif target and target.customWindow == WINDOW_ID_RANK then
@@ -394,10 +405,12 @@ function script.onButtonPress(p, dwActWindowID, dwActButtonID, dwParentWindowID,
 	if dwActWindowID == WINDOW_ID then
 		if id == 1 then
 			selectedRow[p.m_id.dwSerial] = 1
+			resendRaceWindowStatic(p)
 			sendWindowState(p)
 			return
 		elseif id == 6 then
 			selectedRow[p.m_id.dwSerial] = 2
+			resendRaceWindowStatic(p)
 			sendWindowState(p)
 			return
 		elseif id == 4 or id == 9 then
