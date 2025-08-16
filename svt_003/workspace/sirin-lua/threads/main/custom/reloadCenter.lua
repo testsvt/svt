@@ -63,7 +63,6 @@ local function sendWindowState(p)
 end
 
 local function postReloadResync()
-    -- Re-fetch DB-backed state for online players and races to avoid stale caches after reload
     local online = Sirin.mainThread.getActivePlayers()
     local raceSet = {}
 
@@ -71,16 +70,37 @@ local function postReloadResync()
         local serial = p.m_id.dwSerial
         local race = p:GetObjRace()
         raceSet[race] = true
-        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 1, serial) -- personal
-        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 3, serial) -- claimed
+        -- per-tab loads (simulate login)
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 201, string.format('%d|%d', serial, 1))
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 201, string.format('%d|%d', serial, 2))
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 203, string.format('%d|%d', serial, 1))
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 203, string.format('%d|%d', serial, 2))
+        -- send Function Menu statics/state
+        local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
+        local defs = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId]
+        local fm = defs and defs[1]
+        if fm then
+            local d = {}; for k,v in pairs(fm) do d[k]=v end; d.id = 1
+            NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { d } }, true)
+        end
+        -- Race Hunt windows statics/state
+        if _G['raceKillProgress'] and _G['raceKillProgress'].sendWindowState then
+            local defs2 = defs
+            for _,wid in ipairs({3,4,5}) do
+                local def = defs2 and defs2[wid]
+                if def then local d2={}; for k,v in pairs(def) do d2[k]=v end; d2.id = wid; NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 1, data = { d2 } }, true) end
+            end
+            _G['raceKillProgress'].sendWindowState(p)
+        end
     end
 
     for race,_ in pairs(raceSet) do
-        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 2, race) -- race totals
-        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, race) -- ranking
+        -- per-tab top5
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 205, string.format('%d|%d', race, 1))
+        Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 205, string.format('%d|%d', race, 2))
     end
 
-    logConsole(true, "[Reload] Resync queued: personal, claimed, race totals, ranking")
+    logConsole(true, "[Reload] Resync queued: personalTab, claimedTab, raceTab, top5 per tab, FM & custom windows statics/state")
 end
 
 local function resendAllWindows()
