@@ -163,31 +163,34 @@ function script.sendWindowState(p)
 	local currentRow = selectedRow[serial] or 1
 	local rk = raceKills[getRaceKey(p)] or 0
 	local pk = personalKills[getPlayerKey(p)] or 0
-	local canClaim = (rk >= RACE_TARGET) and (pk >= PERSONAL_TARGET) and (not claimedReward[getPlayerKey(p)])
 
 	local w = { id = WINDOW_ID, data = {} }
-	-- Toggler buttons (1 and 6) always clickable
+	-- togglers always clickable
 	table.insert(w.data, { id = 1, stateFlags = tonumber('1101', 2) })
 	table.insert(w.data, { id = 6, stateFlags = tonumber('1101', 2) })
 
-	-- Always hide ids 7..10 to avoid leakage
-	for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
-
-	-- Fill content into slots 2..5 according to currentRow
 	local rankPos = getRankPosForPlayer(p)
 	local rankLabel = string.format('Место в рейтинге: %s', rankPos and tostring(rankPos) or '—')
 
-	-- 2: Race progress bar
-	table.insert(w.data, { id = 2, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
-	-- 3: Personal progress bar
-	table.insert(w.data, { id = 3, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
-	-- 4: Rank button
-	table.insert(w.data, { id = 4, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
-	-- 5: Claim button
-	table.insert(w.data, { id = 5, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
+	if currentRow == 1 then
+		-- show row 1 (2..5)
+		table.insert(w.data, { id = 2, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+		table.insert(w.data, { id = 3, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
+		table.insert(w.data, { id = 4, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
+		table.insert(w.data, { id = 5, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
+		-- hide row 2 (7..10)
+		for i = 7, 10 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
+	else
+		-- hide row 1 (2..5)
+		for i = 2, 5 do table.insert(w.data, { id = i, stateFlags = tonumber('000', 2) }) end
+		-- show row 2 (7..10)
+		table.insert(w.data, { id = 7, stateFlags = tonumber('001', 2), delay = { math.max(RACE_TARGET - math.min(rk, RACE_TARGET), 0), RACE_TARGET }, counter = { math.min(rk, RACE_TARGET), RACE_TARGET } })
+		table.insert(w.data, { id = 8, stateFlags = tonumber('001', 2), delay = { math.max(PERSONAL_TARGET - math.min(pk, PERSONAL_TARGET), 0), PERSONAL_TARGET }, counter = { math.min(pk, PERSONAL_TARGET), PERSONAL_TARGET } })
+		table.insert(w.data, { id = 9, stateFlags = tonumber('1101', 2), text = rankLabel, counter = { -1, -1 } })
+		table.insert(w.data, { id = 10, stateFlags = tonumber('1101', 2), counter = { -1, -1 } })
+	end
 
 	NetOP:new():SendData(p, 'sirin.proto.customWindows', { ct = 3, data = { w } }, true)
-	-- function menu flags unchanged ...
 end
 
 -- Rebind aliases so any old references still resolve
@@ -369,23 +372,23 @@ end
 
 -- Hook handlers
 function script.onButtonPress(p, dwActWindowID, dwActButtonID, dwParentWindowID, dwSelectedID)
-    	local id = dwActButtonID or dwActDataID
+	local id = dwActButtonID or dwActDataID
 	if dwActWindowID == 1 then
-        local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
-        local fm = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId] and SirinScript_CustomWindowsByLangID[langId][1]
-        		local target = fm and fm.data and fm.data[id]
-        		if target and target.customWindow == WINDOW_ID then
+		local langId = Sirin.CLanguageAsset.instance():getPlayerLanguage(p.m_id.wIndex)
+		local fm = _G['SirinScript_CustomWindowsByLangID'] and SirinScript_CustomWindowsByLangID[langId] and SirinScript_CustomWindowsByLangID[langId][1]
+		local target = fm and fm.data and fm.data[id]
+		if target and target.customWindow == WINDOW_ID then
 			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
 			selectedRow[p.m_id.dwSerial] = selectedRow[p.m_id.dwSerial] or 1
 			sendWindowState(p)
 			return
-        elseif target and target.customWindow == WINDOW_ID_RANK then
-            Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
-            sendRankingWindow(p)
-            return
-        end
-    end
-    	if dwActWindowID == WINDOW_ID then
+		elseif target and target.customWindow == WINDOW_ID_RANK then
+			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
+			sendRankingWindow(p)
+			return
+		end
+	end
+	if dwActWindowID == WINDOW_ID then
 		if id == 1 then
 			selectedRow[p.m_id.dwSerial] = 1
 			sendWindowState(p)
@@ -394,45 +397,46 @@ function script.onButtonPress(p, dwActWindowID, dwActButtonID, dwParentWindowID,
 			selectedRow[p.m_id.dwSerial] = 2
 			sendWindowState(p)
 			return
-		elseif id == 4 then
+		elseif id == 4 or id == 9 then
 			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 5, p:GetObjRace())
 			sendRankingWindow(p)
 			return
-		elseif id == 5 then
+		elseif id == 5 or id == 10 then
 			sendRewardWindow(p)
 			return
 		end
-    elseif dwActWindowID == WINDOW_ID_REWARD then
-        if dwActDataID == 2 then
-            local rk = raceKills[getRaceKey(p)] or 0
-            local pk = personalKills[getPlayerKey(p)] or 0
-            local leftRace = math.max(0, RACE_TARGET - rk)
-            local leftPersonal = math.max(0, PERSONAL_TARGET - pk)
-            if claimedReward[getPlayerKey(p)] then
-                informPlayer(p, "Вы уже получили данную награду.")
-                return
-            end
-            if leftRace > 0 or leftPersonal > 0 then
-                local chatMsg
-                if leftRace > 0 and leftPersonal > 0 then
-                    chatMsg = string.format("Для получения награды вашей расе необходимо убить ещё %d монстров, а вам лично — %d монстра.", leftRace, leftPersonal)
-                elseif leftRace > 0 then
-                    chatMsg = string.format("Для получения награды вашей расе необходимо убить ещё %d монстров.", leftRace)
-                else
-                    chatMsg = string.format("Для получения награды вам лично необходимо убить ещё %d монстра.", leftPersonal)
-                end
-                informPlayer(p, chatMsg)
-                return
-            end
-            claimedReward[getPlayerKey(p)] = true
-            Sirin.mainThread.modChargeItem.giveItemBySerial(p.m_id.dwSerial, REWARD_ITEM_CODE, REWARD_COUNT, 0, 0, true)
-            Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 103, p.m_id.dwSerial)
-            informPlayer(p, "Награда получена.")
-            sendWindowState(p)
-            sendRewardWindow(p)
-            return
-        end
-    end
+	elseif dwActWindowID == WINDOW_ID_REWARD then
+		if dwActButtonID == 2 or id == 2 then
+			-- keep reward logic as is
+			local rk = raceKills[getRaceKey(p)] or 0
+			local pk = personalKills[getPlayerKey(p)] or 0
+			local leftRace = math.max(0, RACE_TARGET - rk)
+			local leftPersonal = math.max(0, PERSONAL_TARGET - pk)
+			if claimedReward[getPlayerKey(p)] then
+				informPlayer(p, "Вы уже получили данную награду.")
+				return
+			end
+			if leftRace > 0 or leftPersonal > 0 then
+				local chatMsg
+				if leftRace > 0 and leftPersonal > 0 then
+					chatMsg = string.format("Для получения награды вашей расе необходимо убить ещё %d монстров, а вам лично — %d монстра.", leftRace, leftPersonal)
+				elseif leftRace > 0 then
+					chatMsg = string.format("Для получения награды вашей расе необходимо убить ещё %d монстров.", leftRace)
+				else
+					chatMsg = string.format("Для получения награды вам лично необходимо убить ещё %d монстра.", leftPersonal)
+				end
+				informPlayer(p, chatMsg)
+				return
+			end
+			claimedReward[getPlayerKey(p)] = true
+			Sirin.mainThread.modChargeItem.giveItemBySerial(p.m_id.dwSerial, REWARD_ITEM_CODE, REWARD_COUNT, 0, 0, true)
+			Sirin.processAsyncCallback(0, 'sirin.guard.worldDBThread', 'SirinLua', 'asyncHandler', 103, p.m_id.dwSerial)
+			informPlayer(p, "Награда получена.")
+			sendWindowState(p)
+			sendRewardWindow(p)
+			return
+		end
+	end
 end
 
 function script.onMonsterDestroy(pMonster, byDestroyCode, pAttObj)
